@@ -1,0 +1,38 @@
+{
+  "manifest": {
+    "schemaVersion": 1,
+    "kind": "rast-package",
+    "id": "lua",
+    "type": "runtime",
+    "name": "Lua",
+    "description": "Lua 5.4 interpreter and bytecode compiler, built as static binaries from the lua.org source release (template example).",
+    "homepage": "https://www.lua.org",
+    "license": "MIT",
+    "publisher": {
+      "id": "enricko",
+      "name": "Enricko",
+      "url": "https://github.com/Enricko"
+    },
+    "minRastVersion": "0.5.0",
+    "runtime": {
+      "executables": [
+        { "name": "lua", "path": "bin/lua" },
+        { "name": "luac", "path": "bin/luac" }
+      ],
+      "checks": [
+        { "executable": "lua", "args": ["-v"], "expect": "Lua {version}" },
+        { "executable": "luac", "args": ["-v"], "expect": "Lua {version}", "label": "luac" }
+      ]
+    },
+    "notes": "Static binaries (no host libraries). Built without readline: the interactive prompt has no line editing."
+  },
+  "source": {
+    "version": "5.4.9",
+    "url": "https://www.lua.org/ftp/lua-5.4.9.tar.gz",
+    "sha256": "2335b6c582a52654f94612bf10d2f4672805d05329aa6568b1d8cd9e5c6fb8e6"
+  },
+  "targets": {
+    "linux-x86_64": "ubuntu-24.04",
+    "linux-aarch64": "ubuntu-24.04-arm"
+  }
+}

@@ -1,0 +1,72 @@
+name: release
+
+# Push a tag v<version>-<revision> (e.g. v5.4.9-1) to publish a release that
+# RAST can install with "Install from GitHub". The release carries one archive
+# per target plus rast-package.json; RAST pins the release, the manifest and
+# every artifact to the digests GitHub reports for these assets.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - target: linux-x86_64
+            runner: ubuntu-24.04
+          - target: linux-aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build
+        id: build
+        run: bash scripts/build.sh ${{ matrix.target }} dist
+      - name: Smoke test (same checks RAST runs)
+        run: python3 scripts/package.py smoke "${{ steps.build.outputs.archive }}"
+      - name: Attest build provenance
+        id: attest
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: ${{ steps.build.outputs.archive }}
+      - run: echo "${{ matrix.target }}=${{ steps.attest.outputs.attestation-url }}" > dist/attestation-${{ matrix.target }}.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.target }}
+          path: dist/
+
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: dist
+      - name: Write and validate rast-package.json
+        run: |
+          args=()
+          for f in dist/attestation-*.txt; do args+=(--attestation "$(cat "$f")"); done
+          python3 scripts/package.py manifest --tag "${{ github.ref_name }}" --repo "${{ github.repository }}" \
+            --dist dist "${args[@]}" --out dist/rast-package.json
+          python3 scripts/package.py validate dist/rast-package.json --dist dist
+      - name: Publish the release
+        run: |
+          version=$(python3 -c 'import json; print(json.load(open("dist/rast-package.json"))["version"])')
+          gh release create "${{ github.ref_name }}" dist/*.tar.gz dist/rast-package.json \
+            --title "Lua $version for RAST (${{ github.ref_name }})" \
+            --notes "Install in RAST: Package Center → Install from GitHub → paste https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
+      - name: Check the release like RAST does
+        run: python3 scripts/package.py check-release --repo "${{ github.repository }}" --tag "${{ github.ref_name }}"

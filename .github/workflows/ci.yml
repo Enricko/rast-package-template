@@ -1,0 +1,35 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x86_64
+            runner: ubuntu-24.04
+          - target: linux-aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Unit tests
+        run: python3 -m unittest discover -v tests
+      - name: Build
+        id: build
+        run: bash scripts/build.sh ${{ matrix.target }} dist
+      - name: Smoke test (same checks RAST runs)
+        run: python3 scripts/package.py smoke "${{ steps.build.outputs.archive }}"
+      - name: Manifest validates
+        run: |
+          python3 scripts/package.py manifest --tag "v$(python3 -c 'import json; print(json.load(open("package.json"))["source"]["version"])')-1" \
+            --repo "${{ github.repository }}" --dist dist --allow-missing --out dist/rast-package.json
+          python3 scripts/package.py validate dist/rast-package.json --dist dist
