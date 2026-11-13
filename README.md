@@ -67,7 +67,7 @@ leaving the package), checked, and installed side by side under
    with the release named in the workflow):
    ```sh
    mkdir -p bin
-   curl -fsSL -o bin/rast https://github.com/Enricko/rast/releases/download/v0.11.6/rast-linux-x86_64
+   curl -fsSL -o bin/rast https://github.com/Enricko/rast/releases/download/v0.11.10/rast-linux-x86_64
    chmod +x bin/rast
    bash scripts/build.sh linux-x86_64 dist
    ./bin/rast package smoke dist/<id>-<version>-linux-x86_64.tar.gz --package package.json
