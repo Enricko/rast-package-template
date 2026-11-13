@@ -18,10 +18,25 @@ esac
 [ "$(uname -m)" = "$ARCH" ] || { echo "build $TARGET on a native $ARCH machine (got $(uname -m))" >&2; exit 1; }
 
 HERE=$(cd "$(dirname "$0")/.." && pwd)
-read -r ID VERSION URL SHA < <(python3 -I -c '
-import json, sys
-p = json.load(open(sys.argv[1]))
-print(p["manifest"]["id"], p["source"]["version"], p["source"]["url"], p["source"]["sha256"])' "$HERE/package.json")
+# Read the template without Python (the tooling is Rust or shell only).
+json_first() {
+  sed -n "s/^[[:space:]]*\"$1\": \"\([^\"]*\)\".*/\1/p" "$HERE/package.json" | head -n 1
+}
+ID=$(json_first id)
+VERSION=$(json_first version)
+read -r URL SHA < <(awk '
+  /"source"[[:space:]]*:/ { in_source = 1; next }
+  in_source && /"url"[[:space:]]*:/ {
+    line = $0; sub(/.*"url"[[:space:]]*:[[:space:]]*"/, "", line); sub(/".*/, "", line); url = line
+  }
+  in_source && /"sha256"[[:space:]]*:/ {
+    line = $0; sub(/.*"sha256"[[:space:]]*:[[:space:]]*"/, "", line); sub(/".*/, "", line)
+    print url, line; exit
+  }
+' "$HERE/package.json")
+[ -n "$ID" ] && [ -n "$VERSION" ] && [ -n "$URL" ] && [ -n "$SHA" ] || {
+  echo "cannot read id/version/source.url/source.sha256 from package.json" >&2; exit 1;
+}
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT

@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+env:
+  # RAST release that ships the Rust package-authoring commands.
+  RAST_VERSION: "0.11.5"
+
 jobs:
   build:
     strategy:
@@ -16,20 +20,32 @@ jobs:
         include:
           - target: linux-x86_64
             runner: ubuntu-24.04
+            arch: x86_64
           - target: linux-aarch64
             runner: ubuntu-24.04-arm
+            arch: aarch64
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v5
-      - name: Unit tests
-        run: python3 -m unittest discover -v tests
+      - name: Install the RAST package tool
+        run: |
+          set -euo pipefail
+          mkdir -p bin
+          curl -fsSL -o bin/rast \
+            "https://github.com/Enricko/rast/releases/download/v${RAST_VERSION}/rast-linux-${{ matrix.arch }}"
+          chmod +x bin/rast
+          ./bin/rast version
       - name: Build
         id: build
         run: bash scripts/build.sh ${{ matrix.target }} dist
       - name: Smoke test (same checks RAST runs)
-        run: python3 scripts/package.py smoke "${{ steps.build.outputs.archive }}"
+        run: ./bin/rast package smoke "${{ steps.build.outputs.archive }}" --package package.json
       - name: Manifest validates
         run: |
-          python3 scripts/package.py manifest --tag "v$(python3 -c 'import json; print(json.load(open("package.json"))["source"]["version"])')-1" \
-            --repo "${{ github.repository }}" --dist dist --allow-missing --out dist/rast-package.json
-          python3 scripts/package.py validate dist/rast-package.json --dist dist
+          set -euo pipefail
+          version=$(sed -n 's/^[[:space:]]*"version": "\([^"]*\)".*/\1/p' package.json | head -n 1)
+          test -n "$version"
+          ./bin/rast package manifest --tag "v${version}-1" \
+            --repo "${{ github.repository }}" --dist dist --allow-missing \
+            --out dist/rast-package.json
+          ./bin/rast package validate dist/rast-package.json --dist dist

@@ -4,8 +4,11 @@ A forkable starter for publishing a **third-party package** that the
 [RAST](https://github.com/Enricko/rast) Package Center installs with
 **Install from GitHub**. It ships a working example — **Lua 5.4**, built as
 static binaries from the lua.org source release for `linux-x86_64` and
-`linux-aarch64` — plus the manifest schema, a validator that applies RAST's
-own rules, and a release workflow.
+`linux-aarch64` — plus the manifest schema and a release workflow. Validation,
+smoke tests and release checks are performed by the Rust `rast package`
+commands from the [RAST](https://github.com/Enricko/rast) release, so the
+template cannot drift from what the Package Center accepts; no Python is
+needed.
 
 | Repository | Responsibility |
 |---|---|
@@ -21,8 +24,8 @@ own rules, and a release workflow.
    provenance, writes `rast-package.json` and publishes a GitHub release with:
    * `lua-5.4.9-linux-x86_64.tar.gz`, `lua-5.4.9-linux-aarch64.tar.gz`
    * `rast-package.json` — the manifest, pinning each archive by URL, size and SHA-256
-3. The workflow then runs `scripts/package.py check-release`, the same
-   cross-check RAST performs before it shows a preview.
+3. The workflow then runs `rast package check-release`, the same cross-check
+   RAST performs before it shows a preview.
 
 In RAST: **Package Center → Install from GitHub**, paste the repository or
 release link, review the preview (publisher, repository, release, version,
@@ -59,13 +62,17 @@ leaving the package), checked, and installed side by side under
 3. Adapt [`scripts/build.sh`](scripts/build.sh) to build your software into
    `<id>-<version>/bin/...` and write `dist/<id>-<version>-<target>.tar.gz`.
    Prefer static binaries; otherwise declare `requires.glibc` and host notes.
-4. Check locally:
+4. Check locally (download the Rust tool once from the
+   [RAST release](https://github.com/Enricko/rast/releases); replace `v0.11.5`
+   with the release named in the workflow):
    ```sh
-   python3 -m unittest discover tests
+   mkdir -p bin
+   curl -fsSL -o bin/rast https://github.com/Enricko/rast/releases/download/v0.11.5/rast-linux-x86_64
+   chmod +x bin/rast
    bash scripts/build.sh linux-x86_64 dist
-   python3 scripts/package.py smoke dist/<id>-<version>-linux-x86_64.tar.gz
-   python3 scripts/package.py manifest --tag v<version>-1 --repo <owner>/<repo> --dist dist --allow-missing --out dist/rast-package.json
-   python3 scripts/package.py validate dist/rast-package.json --dist dist
+   ./bin/rast package smoke dist/<id>-<version>-linux-x86_64.tar.gz --package package.json
+   ./bin/rast package manifest --tag v<version>-1 --repo <owner>/<repo> --dist dist --allow-missing --out dist/rast-package.json
+   ./bin/rast package validate dist/rast-package.json --dist dist
    ```
 5. Publish: `git tag v<version>-1 && git push origin v<version>-1`.
 6. Import it in RAST with the release link.
@@ -76,8 +83,8 @@ To ship a rebuilt archive of the same upstream version, bump the revision
 ## Manifest
 
 The format is documented by [`schema/rast-package.schema.json`](schema/rast-package.schema.json)
-(JSON Schema 2020-12) and enforced by `scripts/rastpkg.py`, a port of RAST's
-validator. Key fields:
+(JSON Schema 2020-12) and enforced by `rast package validate`, which uses
+RAST's own manifest validator. Key fields:
 
 | Field | Meaning |
 |---|---|

@@ -14,6 +14,10 @@ permissions:
   id-token: write
   attestations: write
 
+env:
+  # RAST release that ships the Rust package-authoring commands.
+  RAST_VERSION: "0.11.5"
+
 jobs:
   build:
     strategy:
@@ -22,16 +26,26 @@ jobs:
         include:
           - target: linux-x86_64
             runner: ubuntu-24.04
+            arch: x86_64
           - target: linux-aarch64
             runner: ubuntu-24.04-arm
+            arch: aarch64
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v5
+      - name: Install the RAST package tool
+        run: |
+          set -euo pipefail
+          mkdir -p bin
+          curl -fsSL -o bin/rast \
+            "https://github.com/Enricko/rast/releases/download/v${RAST_VERSION}/rast-linux-${{ matrix.arch }}"
+          chmod +x bin/rast
+          ./bin/rast version
       - name: Build
         id: build
         run: bash scripts/build.sh ${{ matrix.target }} dist
       - name: Smoke test (same checks RAST runs)
-        run: python3 scripts/package.py smoke "${{ steps.build.outputs.archive }}"
+        run: ./bin/rast package smoke "${{ steps.build.outputs.archive }}" --package package.json
       - name: Attest build provenance
         id: attest
         uses: actions/attest-build-provenance@v3
@@ -55,18 +69,28 @@ jobs:
           pattern: dist-*
           merge-multiple: true
           path: dist
+      - name: Install the RAST package tool
+        run: |
+          set -euo pipefail
+          mkdir -p bin
+          curl -fsSL -o bin/rast \
+            "https://github.com/Enricko/rast/releases/download/v${RAST_VERSION}/rast-linux-x86_64"
+          chmod +x bin/rast
+          ./bin/rast version
       - name: Write and validate rast-package.json
         run: |
+          set -euo pipefail
           args=()
           for f in dist/attestation-*.txt; do args+=(--attestation "$(cat "$f")"); done
-          python3 scripts/package.py manifest --tag "${{ github.ref_name }}" --repo "${{ github.repository }}" \
+          ./bin/rast package manifest --tag "${{ github.ref_name }}" --repo "${{ github.repository }}" \
             --dist dist "${args[@]}" --out dist/rast-package.json
-          python3 scripts/package.py validate dist/rast-package.json --dist dist
+          ./bin/rast package validate dist/rast-package.json --dist dist
       - name: Publish the release
         run: |
-          version=$(python3 -c 'import json; print(json.load(open("dist/rast-package.json"))["version"])')
+          set -euo pipefail
+          version=$(jq -r .version dist/rast-package.json)
           gh release create "${{ github.ref_name }}" dist/*.tar.gz dist/rast-package.json \
             --title "Lua $version for RAST (${{ github.ref_name }})" \
             --notes "Install in RAST: Package Center → Install from GitHub → paste https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
       - name: Check the release like RAST does
-        run: python3 scripts/package.py check-release --repo "${{ github.repository }}" --tag "${{ github.ref_name }}"
+        run: ./bin/rast package check-release --repo "${{ github.repository }}" --tag "${{ github.ref_name }}"
