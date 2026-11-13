@@ -10,7 +10,7 @@ permissions:
 
 env:
   # RAST release that ships the Rust package-authoring commands.
-  RAST_VERSION: "0.11.5"
+  RAST_VERSION: "0.11.6"
 
 jobs:
   build:
