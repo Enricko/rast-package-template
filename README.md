@@ -89,7 +89,7 @@ RAST's own manifest validator. Key fields:
 | Field | Meaning |
 |---|---|
 | `schemaVersion`, `kind` | `1`, `"rast-package"` |
-| `id`, `type` | package id; `runtime` (types `app` and `service` are reserved for later schema versions) |
+| `id`, `type` | package id; `runtime` (CLI packages) or `app` (App Center application, RAST 0.11.8+; `service` is reserved for a later version) |
 | `publisher` | `{id, name, url}` — who publishes; bound to the repository |
 | `version`, `revision` | upstream version (also the install directory) and package revision |
 | `channel` | optional update stream (default `major.minor`) |
